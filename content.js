@@ -6,6 +6,13 @@ const SELECTOR_CANDIDATES = [
   '[class*="price" i]',
   '[id*="price" i]',
   '[data-test*="price" i]',
+  '[class*="cost" i]',
+  '[id*="cost" i]',
+  '[class*="amount" i]',
+  '[id*="amount" i]',
+  'span[class*="price"]',
+  'div[class*="price"]',
+  'p[class*="price"]',
 ];
 
 function parsePrice(text) {
@@ -47,6 +54,12 @@ function findTitle() {
     '[data-testid*="title" i]',
     '[class*="title" i]',
     '[id*="title" i]',
+    '[class*="product-name" i]',
+    '[id*="product-name" i]',
+    '[class*="name" i]',
+    '[id*="name" i]',
+    'h2',
+    'h3',
   ];
   for (const sel of heuristics) {
     const el = document.querySelector(sel);
@@ -126,6 +139,16 @@ function getPageContext() {
   const title = findTitle();
   const subscriptionKeywords = detectSubscriptionText();
   const darkPatterns = detectDarkPatterns();
+
+  console.log('DecisionRisk: Scraped data:', {
+    url: window.location.href,
+    title,
+    price: price?.value,
+    priceRaw: price?.raw,
+    priceSelector: price?.selector,
+    subscriptionKeywords,
+    darkPatterns,
+  });
 
   return {
     url: window.location.href,

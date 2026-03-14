@@ -120,6 +120,7 @@ async function fetchAnalysis() {
   state.previousAnalysis = state.analysis;
   state.analysis = response.analysis;
   state.alternatives = response.analysis.alternatives ?? [];
+  console.log('DecisionRisk: Analysis result:', response.analysis);
   updateSummary(response.analysis);
 }
 

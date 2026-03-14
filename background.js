@@ -163,6 +163,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       chrome.tabs.sendMessage(tab.id, { type: 'SCRAPE_PAGE' }, async (response) => {
         const context = response?.data;
+        console.log('DecisionRisk: Received context:', context);
         const analysis = await analyzePage(context);
         sendResponse({ analysis });
       });
