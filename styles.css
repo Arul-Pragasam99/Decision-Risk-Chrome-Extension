@@ -1,0 +1,182 @@
+/* Basic styling for DecisionRisk™ popup */
+:root {
+  --bg: #0f172a;
+  --card: #111827;
+  --border: rgba(148, 163, 184, 0.2);
+  --text: #e2e8f0;
+  --muted: rgba(226, 232, 240, 0.75);
+  --accent: #38bdf8;
+  --success: #22c55e;
+  --warning: #f97316;
+  --danger: #ef4444;
+  --radius: 12px;
+  --shadow: 0 12px 22px rgba(15, 23, 42, 0.55);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 360px;
+  color: var(--text);
+  background: radial-gradient(circle at top, #1f2937, var(--bg));
+}
+
+.container {
+  padding: 16px;
+}
+
+header {
+  margin-bottom: 12px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+}
+
+header .subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.summary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 6px;
+  display: grid;
+}
+
+.summary-list li {
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  gap: 8px;
+}
+
+.btn {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  background: rgba(148, 163, 184, 0.16);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-primary {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.btn-primary:hover {
+  background: rgba(56, 189, 248, 0.25);
+}
+
+footer {
+  text-align: center;
+  padding-top: 4px;
+}
+
+footer small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Simple animation helpers (Tailwind-like naming) */
+@keyframes dr-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dr-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 10px rgba(56, 189, 248, 0.18);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: dr-fade-in-up 320ms ease-out forwards;
+}
+
+.animate-stagger > li {
+  opacity: 0;
+  animation: dr-fade-in-up 320ms ease-out forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+.pulse {
+  animation: dr-pulse 420ms ease-out;
+}
+
+.transition-all {
+  transition: all 200ms ease;
+}
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.status-low {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+}
+
+.status-medium {
+  background: rgba(249, 115, 22, 0.15);
+  color: var(--warning);
+}
+
+.status-high {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}

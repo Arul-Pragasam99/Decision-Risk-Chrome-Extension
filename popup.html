@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DecisionRisk™</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>DecisionRisk™</h1>
+        <p class="subtitle">Smarter purchases. Lower risk.</p>
+      </header>
+
+      <section id="summary" class="card">
+        <h2>Decision Summary</h2>
+        <ul class="summary-list">
+          <li><strong>Price risk:</strong> <span id="priceRisk">Loading…</span></li>
+          <li><strong>Resale value:</strong> <span id="resaleRisk">Loading…</span></li>
+          <li><strong>Subscription trap:</strong> <span id="subscriptionRisk">Loading…</span></li>
+          <li><strong>Dark pattern:</strong> <span id="darkPatternRisk">Loading…</span></li>
+          <li><strong>Alternatives:</strong> <span id="alternativeCount">Loading…</span></li>
+        </ul>
+        <div class="actions">
+          <button id="refreshBtn" class="btn">Refresh</button>
+          <button id="viewAlternativesBtn" class="btn btn-primary">View Alternatives</button>
+        </div>
+      </section>
+
+      <section id="details" class="card">
+        <h2>Details</h2>
+        <div id="detailsContent">Loading…</div>
+      </section>
+
+      <footer>
+        <small>
+          Tip: Open a product page and click refresh to analyze price & subscription risk.
+        </small>
+      </footer>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
