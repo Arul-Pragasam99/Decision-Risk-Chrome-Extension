@@ -45,6 +45,10 @@ function pulseElement(el) {
 function updateSummary(analysis) {
   if (!analysis) return;
 
+  // Display product info
+  setText('productName', analysis.productTitle || 'Unknown');
+  setText('productPrice', analysis.productPrice || 'Not found');
+
   const summaryMap = {
     priceRisk: analysis.priceRisk || 'Unknown',
     resaleRisk: analysis.resaleRisk || 'Unknown',
@@ -94,6 +98,8 @@ function updateSummary(analysis) {
 }
 
 async function fetchAnalysis() {
+  setText('productName', 'Loading…');
+  setText('productPrice', 'Loading…');
   setText('priceRisk', 'Loading…');
   setText('resaleRisk', 'Loading…');
   setText('subscriptionRisk', 'Loading…');
@@ -105,6 +111,8 @@ async function fetchAnalysis() {
   });
 
   if (!response || !response.analysis) {
+    setText('productName', 'No data');
+    setText('productPrice', 'No data');
     setText('detailsContent', 'No data available on this page. Try opening a product listing and refresh.');
     return;
   }
@@ -125,6 +133,9 @@ function openAlternatives() {
 }
 
 function animateIn() {
+  const productInfo = getEl('productInfo');
+  if (productInfo) productInfo.classList.add('animate-fade-in-up', 'transition-all');
+
   const container = getEl('summary');
   if (!container) return;
   container.classList.add('animate-fade-in-up', 'transition-all');

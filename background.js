@@ -145,6 +145,10 @@ async function analyzePage(context) {
 
   analysis.alternatives = buildAlternatives(context.title);
 
+  // Add raw product info for display
+  analysis.productTitle = context.title || 'Unknown';
+  analysis.productPrice = context.price ? `$${context.price.toFixed(2)}` : 'Not found';
+
   return analysis;
 }
 

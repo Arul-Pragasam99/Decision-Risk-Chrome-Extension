@@ -24,6 +24,7 @@ A prototype Chrome extension that helps users make smarter online purchasing dec
 ## 🔍 What It Does (MVP)
 
 - Scrapes the current tab for price, title, and subscription-related text.
+- Displays the **product name and price** directly in the popup.
 - Estimates a basic price-risk score (placeholder logic).
 - Detects simple dark patterns (urgency messaging, pre-checked options).
 - Provides quick “alternative search” links.
