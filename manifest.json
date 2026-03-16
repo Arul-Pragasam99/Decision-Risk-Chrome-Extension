@@ -6,7 +6,8 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "notifications"
   ],
   "host_permissions": [
     "https://*.amazon.in/*",
@@ -18,7 +19,7 @@
     "https://*.snapdeal.com/*",
     "https://*.nykaa.com/*",
     "https://*.tatacliq.com/*",
-    "http://localhost:5000/*"
+    "https://decisionrisk-server.onrender.com/*"
   ],
   "action": {
     "default_popup": "popup.html",

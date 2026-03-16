@@ -1,9 +1,10 @@
-"""server.py — DecisionRisk Flask server."""
+"""server.py — DecisionRisk Flask server for Render deployment."""
 
 from flask import Flask, request, jsonify  # type: ignore[import-untyped]
-from flask_cors import CORS  # type: ignore[import-untyped]
+from flask_cors import CORS               # type: ignore[import-untyped]
 import threading
 import time
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -30,6 +31,11 @@ def warm_models():
 
         _models_loaded = True
         print('All AI models loaded and ready')
+
+        # Keep Render awake
+        from keep_alive import start_keep_alive
+        start_keep_alive()
+
     except Exception as e:
         print(f'Some models failed to load: {e}')
         _models_loaded = True
@@ -38,6 +44,11 @@ def warm_models():
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'models_ready': _models_loaded})
+
+
+@app.route('/ping', methods=['GET'])
+def ping():
+    return jsonify({'status': 'awake'})
 
 
 @app.route('/analyze', methods=['POST'])
@@ -54,7 +65,7 @@ def analyze():
     result: dict = {}
     t0 = time.time()
 
-    # Price risk
+    # ── Price risk ────────────────────────────────────────────────────────────
     try:
         from ai_models.price_risk_model import estimate_price_history, price_risk_score
         if price:
@@ -63,8 +74,11 @@ def analyze():
             history_raw = storage.load_history(product_key)
             historical  = [float(e['price']) for e in history_raw]
             stats       = storage.get_price_stats(product_key)
-            history     = estimate_price_history(float(price), historical if len(historical) > 1 else None)
-            risk        = price_risk_score(history)
+            history     = estimate_price_history(
+                float(price),
+                historical if len(historical) > 1 else None
+            )
+            risk = price_risk_score(history)
             result['priceRisk'] = {
                 'level':           risk.risk_level,
                 'score':           risk.score,
@@ -72,24 +86,31 @@ def analyze():
                 'details':         risk.details,
                 'trend':           history.trend,
                 'trendPrediction': risk.trend_prediction,
-                'predictedNext':   round(history.predicted_next, 0) if history.predicted_next else None,
+                'predictedNext':   round(history.predicted_next, 0)
+                                   if history.predicted_next else None,
                 'confidence':      round(history.confidence, 2),
                 'historyCount':    stats.get('count', 1),
             }
         else:
             result['priceRisk'] = {
                 'level': 'Unknown', 'score': 0.5,
-                'recommendation': 'No price detected', 'details': '',
-                'trend': 'stable', 'trendPrediction': None,
-                'predictedNext': None, 'confidence': 0.0, 'historyCount': 0,
+                'recommendation': 'No price detected',
+                'details': '', 'trend': 'stable',
+                'trendPrediction': None, 'predictedNext': None,
+                'confidence': 0.0, 'historyCount': 0,
             }
     except Exception as e:
         print(f'Price risk error: {e}')
-        result['priceRisk'] = {'level': 'Unknown', 'score': 0.5, 'recommendation': str(e)}
+        result['priceRisk'] = {
+            'level': 'Unknown', 'score': 0.5,
+            'recommendation': str(e)
+        }
 
-    # Dark patterns
+    # ── Dark patterns ─────────────────────────────────────────────────────────
     try:
-        from ai_models.dark_pattern_detector import detect_dark_patterns, analyze_checkout_manipulation
+        from ai_models.dark_pattern_detector import (
+            detect_dark_patterns, analyze_checkout_manipulation
+        )
         dark     = detect_dark_patterns(page_text, url)
         checkout = analyze_checkout_manipulation(page_text)
         result['darkPatterns'] = {
@@ -100,9 +121,11 @@ def analyze():
         }
     except Exception as e:
         print(f'Dark pattern error: {e}')
-        result['darkPatterns'] = {'detected': [], 'count': 0, 'riskLevel': 'Low'}
+        result['darkPatterns'] = {
+            'detected': [], 'count': 0, 'riskLevel': 'Low'
+        }
 
-    # Subscription risk
+    # ── Subscription risk ─────────────────────────────────────────────────────
     try:
         from ai_models.subscription_detector import analyze_subscription_risk
         sub = analyze_subscription_risk(page_text)
@@ -117,17 +140,23 @@ def analyze():
         }
     except Exception as e:
         print(f'Subscription error: {e}')
-        result['subscriptionRisk'] = {'level': 'Low', 'score': 0.0, 'recommendation': str(e)}
+        result['subscriptionRisk'] = {
+            'level': 'Low', 'score': 0.0,
+            'recommendation': str(e)
+        }
 
-    # Resale value
+    # ── Resale value ──────────────────────────────────────────────────────────
     try:
         from ai_models.resale_value_model import (
-            predict_resale_value, get_resale_tips, infer_category, extract_brand
+            predict_resale_value, get_resale_tips,
+            infer_category, extract_brand
         )
         category = infer_category(title)
-        resale   = predict_resale_value(title, float(price) if price else 0.0, category)
-        brand    = extract_brand(title)
-        tips     = get_resale_tips(category, brand)
+        resale   = predict_resale_value(
+            title, float(price) if price else 0.0, category
+        )
+        brand = extract_brand(title)
+        tips  = get_resale_tips(category, brand)
         result['resaleValue'] = {
             'level':          resale.risk_level,
             'score':          resale.score,
@@ -151,9 +180,6 @@ def analyze():
 
 if __name__ == '__main__':
     threading.Thread(target=warm_models, daemon=True).start()
-    print('=' * 50)
-    print('  DecisionRisk AI Server')
-    print('  http://localhost:5000')
-    print('  Keep this window open while browsing')
-    print('=' * 50)
-    app.run(port=5000, debug=False, threaded=True)
+    port = int(os.environ.get('PORT', 5000))
+    print(f'DecisionRisk AI Server running on port {port}')
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)

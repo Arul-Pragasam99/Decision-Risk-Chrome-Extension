@@ -1,6 +1,6 @@
-// background.js — DecisionRisk™ with full Python server integration
+// background.js — DecisionRisk™ with Render cloud server
 
-const LOCAL_SERVER = 'http://localhost:5000';
+const LOCAL_SERVER = 'https://decisionrisk-server.onrender.com';
 
 const DEFAULT_ANALYSIS = {
   priceRisk: 'Unknown',
@@ -17,7 +17,6 @@ const DEFAULT_ANALYSIS = {
   productPrice: null,
   url: '',
   serverOnline: false,
-  // New fields
   priceTrend: 'stable',
   trendPrediction: null,
   predictedNextPrice: null,
@@ -31,6 +30,58 @@ const DEFAULT_ANALYSIS = {
   processingTimeMs: 0,
 };
 
+// ─── Check server health ──────────────────────────────────────────────────────
+async function isServerAlive() {
+  try {
+    const res = await fetch(`${LOCAL_SERVER}/health`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+// ─── Wake up Render server (cold start) ──────────────────────────────────────
+async function wakeServer() {
+  console.log('🔄 Waking Render server...');
+
+  // Notify popup
+  chrome.runtime.sendMessage({
+    type: 'SERVER_STATUS', status: 'starting'
+  }).catch(() => {});
+
+  // Ping server to wake it
+  try {
+    await fetch(`${LOCAL_SERVER}/ping`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(35000), // Render cold start can take 30s
+    });
+  } catch (e) {
+    console.warn('Wake ping failed:', e.message);
+  }
+
+  // Wait and retry health check
+  for (let i = 0; i < 12; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    console.log(`🔄 Checking server... attempt ${i + 1}/12`);
+    if (await isServerAlive()) {
+      console.log('✅ Server is awake!');
+      chrome.runtime.sendMessage({
+        type: 'SERVER_STATUS', status: 'online'
+      }).catch(() => {});
+      return true;
+    }
+  }
+
+  console.warn('❌ Server did not wake up');
+  chrome.runtime.sendMessage({
+    type: 'SERVER_STATUS', status: 'offline'
+  }).catch(() => {});
+  return false;
+}
+
 // ─── Scrape tab ───────────────────────────────────────────────────────────────
 async function scrapeTab(tabId) {
   try {
@@ -40,7 +91,9 @@ async function scrapeTab(tabId) {
     console.log('⚠️ Injecting content script...');
   }
   try {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+    await chrome.scripting.executeScript({
+      target: { tabId }, files: ['content.js']
+    });
     await new Promise(r => setTimeout(r, 800));
     const retry = await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE_PAGE' });
     if (retry?.success && retry?.data) return retry.data;
@@ -50,7 +103,7 @@ async function scrapeTab(tabId) {
   return null;
 }
 
-// ─── Get page text for Python server ─────────────────────────────────────────
+// ─── Get page text ────────────────────────────────────────────────────────────
 async function getPageText(tabId) {
   try {
     const results = await chrome.scripting.executeScript({
@@ -76,11 +129,12 @@ async function callPythonServer(data, pageText) {
         platform: data.platform,
         pageText: pageText || '',
       }),
+      signal: AbortSignal.timeout(30000),
     });
     if (!response.ok) return null;
     return await response.json();
   } catch (e) {
-    console.warn('⚠️ Python server offline:', e.message);
+    console.warn('⚠️ Server call failed:', e.message);
     return null;
   }
 }
@@ -92,19 +146,15 @@ function buildServerAnalysis(data, server) {
   const sr = server.subscriptionRisk || {};
   const rv = server.resaleValue      || {};
 
-  // Price detail — include trend prediction if available
   let priceDetail = pr.details || '';
-  if (pr.trendPrediction) {
-    priceDetail += ` | ${pr.trendPrediction}`;
-  }
+  if (pr.trendPrediction) priceDetail += ` | ${pr.trendPrediction}`;
 
-  // Resale detail
   let resaleDetail = '';
   if (rv.estimatedValue) {
-    resaleDetail = `Est. resale: ₹${Number(rv.estimatedValue).toLocaleString('en-IN')} (${rv.retentionRate}% retained)`;
+    resaleDetail = `Est. resale: Rs.${Number(rv.estimatedValue)
+      .toLocaleString('en-IN')} (${rv.retentionRate}% retained)`;
   }
 
-  // Subscription detail
   let subscriptionDetail = sr.recommendation || '';
   if (sr.foundTerms && sr.foundTerms.length > 0) {
     subscriptionDetail += ` Found: ${sr.foundTerms.slice(0, 3).join(', ')}`;
@@ -116,41 +166,31 @@ function buildServerAnalysis(data, server) {
     productPrice:          data.price || null,
     url:                   data.url   || '',
     serverOnline:          true,
-
-    // Price risk
-    priceRisk:             pr.level          || 'Unknown',
-    priceDetail:           priceDetail       || 'No price detail available',
-    priceTrend:            pr.trend          || 'stable',
+    priceRisk:             pr.level           || 'Unknown',
+    priceDetail:           priceDetail        || '',
+    priceTrend:            pr.trend           || 'stable',
     trendPrediction:       pr.trendPrediction || null,
-    predictedNextPrice:    pr.predictedNext  || null,
-    predictionConfidence:  pr.confidence     || 0,
-    priceHistoryCount:     pr.historyCount   || 1,
-
-    // Resale
-    resaleRisk:            rv.level          || 'Medium',
-    resaleDetail:          resaleDetail,
-    resaleTips:            rv.tips           || '',
-    resaleCategory:        rv.category       || '',
-    resaleRetentionRate:   rv.retentionRate  || 0,
-
-    // Subscription
-    subscriptionRisk:      sr.level          || 'Low',
-    subscriptionDetail:    subscriptionDetail,
-    subscriptionFoundTerms: sr.foundTerms    || [],
-    mlConfidence:          sr.mlConfidence   || 0,
-
-    // Dark patterns
-    darkPatterns:          dp.detected       || [],
+    predictedNextPrice:    pr.predictedNext   || null,
+    predictionConfidence:  pr.confidence      || 0,
+    priceHistoryCount:     pr.historyCount    || 1,
+    resaleRisk:            rv.level           || 'Medium',
+    resaleDetail,
+    resaleTips:            rv.tips            || '',
+    resaleCategory:        rv.category        || '',
+    resaleRetentionRate:   rv.retentionRate   || 0,
+    subscriptionRisk:      sr.level           || 'Low',
+    subscriptionDetail,
+    subscriptionFoundTerms: sr.foundTerms     || [],
+    mlConfidence:          sr.mlConfidence    || 0,
+    darkPatterns:          dp.detected        || [],
     darkPatternDetail:     dp.count > 0
                              ? `${dp.count} dark pattern(s) detected.`
                              : 'No dark patterns found.',
-
-    // Meta
     processingTimeMs:      server.processingTimeMs || 0,
   };
 }
 
-// ─── Fallback: JS-only analysis ───────────────────────────────────────────────
+// ─── Fallback JS-only analysis ────────────────────────────────────────────────
 function buildFallbackAnalysis(data) {
   if (!data) return {
     ...DEFAULT_ANALYSIS,
@@ -161,7 +201,7 @@ function buildFallbackAnalysis(data) {
   let priceDetail = 'No price found on this page.';
 
   if (data.price) {
-    priceDetail = `Detected price: ₹${data.price.toLocaleString('en-IN')}`;
+    priceDetail = `Detected price: Rs.${data.price.toLocaleString('en-IN')}`;
     if (data.price < 500)       priceRisk = 'Low';
     else if (data.price < 5000) priceRisk = 'Medium';
     else                        priceRisk = 'High';
@@ -179,7 +219,7 @@ function buildFallbackAnalysis(data) {
     priceDetail,
     subscriptionRisk:   hasSub ? 'High' : 'Low',
     subscriptionDetail: hasSub
-                          ? '⚠️ Subscription text detected.'
+                          ? 'Subscription text detected.'
                           : 'No subscription indicators found.',
     darkPatterns:       data.darkPatterns || [],
     darkPatternDetail:  data.darkPatterns?.length > 0
@@ -198,10 +238,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
       if (!tab?.id) {
-        sendResponse({ analysis: { ...DEFAULT_ANALYSIS, priceDetail: 'No active tab found.' } });
+        sendResponse({ analysis: { ...DEFAULT_ANALYSIS, priceDetail: 'No active tab.' } });
         return;
       }
 
+      // Scrape page
       const [data, pageText] = await Promise.all([
         scrapeTab(tab.id),
         getPageText(tab.id),
@@ -212,19 +253,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
-      const serverResult = await callPythonServer(data, pageText);
+      // Check if server alive
+      let serverAlive = await isServerAlive();
 
-      if (serverResult) {
-        console.log(`✅ Server analysis done in ${serverResult.processingTimeMs}ms`);
-        sendResponse({ analysis: buildServerAnalysis(data, serverResult) });
-      } else {
-        console.log('⚠️ Using JS fallback');
-        sendResponse({ analysis: buildFallbackAnalysis(data) });
+      // If sleeping — wake it up (Render cold start)
+      if (!serverAlive) {
+        serverAlive = await wakeServer();
       }
 
+      // Call server or fallback
+      if (serverAlive) {
+        const serverResult = await callPythonServer(data, pageText);
+        if (serverResult) {
+          console.log(`✅ Done in ${serverResult.processingTimeMs}ms`);
+          sendResponse({ analysis: buildServerAnalysis(data, serverResult) });
+          return;
+        }
+      }
+
+      // Fallback
+      console.log('⚠️ Using JS fallback');
+      sendResponse({ analysis: buildFallbackAnalysis(data) });
+
     } catch (err) {
-      console.error('❌ Background error:', err);
-      sendResponse({ analysis: { ...DEFAULT_ANALYSIS, priceDetail: 'Error: ' + err.message } });
+      console.error('❌ Error:', err);
+      sendResponse({
+        analysis: { ...DEFAULT_ANALYSIS, priceDetail: 'Error: ' + err.message }
+      });
     }
   })();
 
