@@ -1,171 +1,342 @@
-// Content script: scrapes basic product info + detects common dark patterns
+// content.js — DecisionRisk™ with MutationObserver + Retry
 
-const SELECTOR_CANDIDATES = [
-  '[itemprop="price"]',
-  '[data-price]',
-  '[class*="price" i]',
-  '[id*="price" i]',
-  '[data-test*="price" i]',
-  '[class*="cost" i]',
-  '[id*="cost" i]',
-  '[class*="amount" i]',
-  '[id*="amount" i]',
-  'span[class*="price"]',
-  'div[class*="price"]',
-  'p[class*="price"]',
-];
+console.log('🔍 DecisionRisk: Loaded on', window.location.href);
+
+function getPlatform() {
+  const host = window.location.hostname;
+  if (host.includes('amazon.in') || host.includes('amazon.com')) return 'amazon';
+  if (host.includes('flipkart.com'))  return 'flipkart';
+  if (host.includes('myntra.com'))    return 'myntra';
+  if (host.includes('ajio.com'))      return 'ajio';
+  if (host.includes('meesho.com'))    return 'meesho';
+  if (host.includes('snapdeal.com'))  return 'snapdeal';
+  if (host.includes('nykaa.com'))     return 'nykaa';
+  if (host.includes('tatacliq.com'))  return 'tatacliq';
+  return 'other';
+}
+
+function isProductPage(platform) {
+  const path = window.location.pathname;
+  const map = {
+    amazon:   [/\/dp\//i, /\/gp\/product\//i],
+    flipkart: [/\/p\//i],
+    myntra:   [/\/buy\//i],
+    ajio:     [/\/p\//i],
+    meesho:   [/\/product-detail\//i, /\/product\//i],
+    snapdeal: [/\/product\//i],
+    nykaa:    [/\/p\//i, /\/product\//i],
+    tatacliq: [/\/p\-/i, /\/product\//i],
+    other:    [/\/dp\//i, /\/product\//i, /\/p\//i, /\/item\//i],
+  };
+  return (map[platform] || map.other).some(r => r.test(path));
+}
 
 function parsePrice(text) {
   if (!text) return null;
-  const cleaned = text.replace(/[\s\u00A0]/g, '').replace(/[,]/g, '.');
-  const match = cleaned.match(/\d+[\d\.]*\d*/);
-  if (!match) return null;
-  const value = parseFloat(match[0]);
-  return Number.isFinite(value) ? value : null;
-}
-
-function findPrice() {
-  for (const selector of SELECTOR_CANDIDATES) {
-    const el = document.querySelector(selector);
-    if (!el) continue;
-    const text = el.innerText || el.value || el.getAttribute('content');
-    const value = parsePrice(text);
-    if (value) {
-      return { value, raw: text, selector };
+  const patterns = [
+    /₹\s*([0-9,]+(?:\.\d{1,2})?)/,
+    /Rs\.?\s*([0-9,]+(?:\.\d{1,2})?)/i,
+    /([0-9,]{3,}(?:\.\d{1,2})?)/,
+  ];
+  for (const pattern of patterns) {
+    const match = text.replace(/\s+/g, '').match(pattern);
+    if (match) {
+      const price = parseFloat(match[1].replace(/,/g, ''));
+      if (!isNaN(price) && price > 0 && price < 10000000) return price;
     }
   }
-
-  // Fallback: look for the first strong with $ or €
-  const fallback = Array.from(document.querySelectorAll('span, div, strong'))
-    .map((el) => ({ el, text: el.innerText }))
-    .find((item) => item.text && /\$\s?\d|€\s?\d/.test(item.text));
-  if (fallback) {
-    const value = parsePrice(fallback.text);
-    if (value) return { value, raw: fallback.text, selector: 'fallback' };
-  }
-
   return null;
 }
 
-function findTitle() {
-  const heuristics = [
-    'h1[itemprop="name"]',
-    'h1',
-    '[data-testid*="title" i]',
-    '[class*="title" i]',
-    '[id*="title" i]',
-    '[class*="product-name" i]',
-    '[id*="product-name" i]',
-    '[class*="name" i]',
-    '[id*="name" i]',
-    'h2',
-    'h3',
-  ];
-  for (const sel of heuristics) {
-    const el = document.querySelector(sel);
-    if (el?.innerText?.trim()) return el.innerText.trim();
+function trySelectors(selectors) {
+  for (const sel of selectors) {
+    try {
+      const els = document.querySelectorAll(sel);
+      for (const el of els) {
+        if (el.offsetParent === null && !sel.includes('offscreen') && !sel.includes('Offscreen')) continue;
+        const text = el.innerText || el.textContent || '';
+        const price = parsePrice(text);
+        if (price) return price;
+      }
+    } catch (e) {}
   }
-  return document.title || '';
+  return null;
 }
 
-function detectSubscriptionText() {
-  const keywords = [
-    'recurring',
-    'subscription',
-    'auto-renew',
-    'auto renew',
-    'billed monthly',
-    'billed annually',
-    'cancel anytime',
-    'trial',
-    'free trial',
-    'auto renewal',
+function extractPricePlatform(platform) {
+  const map = {
+    amazon: [
+      () => {
+        const wholeEls = document.querySelectorAll('.a-price-whole');
+        for (const wholeEl of wholeEls) {
+          const whole = (wholeEl.innerText || wholeEl.textContent).replace(/[^\d]/g, '');
+          if (!whole) continue;
+          const fracEl = wholeEl.closest('.a-price')?.querySelector('.a-price-fraction');
+          const frac = fracEl ? (fracEl.innerText || fracEl.textContent).replace(/[^\d]/g, '') : '00';
+          const price = parseFloat(`${whole}.${frac}`);
+          if (price > 0) return price;
+        }
+        return null;
+      },
+      () => trySelectors([
+        '.priceToPay .a-offscreen',
+        '.apexPriceToPay .a-offscreen',
+        '#corePrice_feature_div .a-offscreen',
+        '.a-price .a-offscreen',
+        '#priceblock_ourprice',
+        '#priceblock_dealprice',
+        '#priceblock_saleprice',
+        '#apex_desktop_newAccordionRow .a-offscreen',
+        '.reinventPricePriceToPayMargin .a-offscreen',
+      ]),
+    ],
+    flipkart: [
+      () => trySelectors([
+        '._30jeq3._16Jk6d', '._30jeq3', '.Nx9bqj.CxhGGd',
+        '.Nx9bqj', '._16Jk6d', 'div._25b18 ._30jeq3', '.CEmiEU ._30jeq3',
+      ]),
+    ],
+    myntra: [
+      () => trySelectors([
+        '.pdp-price strong', '.pdp-price', 'span.pdp-price',
+        '.pdp-discount-container .pdp-price',
+      ]),
+    ],
+    ajio: [
+      () => trySelectors([
+        '.prod-sp', '.price-container .prod-sp',
+        'div.prod-price-section .prod-sp', '.final-price', '.product-base-price',
+      ]),
+    ],
+    meesho: [
+      () => trySelectors([
+        'h4.sc-eDvSVe', 'span.sc-eDvSVe', 'div[class*="Price"] h4',
+        'div[class*="price"] span', 'h4[class*="price"]', 'span[class*="price"]',
+      ]),
+    ],
+    snapdeal: [
+      () => trySelectors([
+        '#selling-price-id', '.payBlkBig',
+        'span.lfloat.product-price', '.product-price',
+      ]),
+    ],
+    nykaa: [
+      () => trySelectors([
+        'span.css-1jczs19', '.price-container span',
+        'div[class*="price"] span', 'span[class*="selling-price"]',
+        '.product-price', 'div.css-7yvptr span',
+      ]),
+    ],
+    tatacliq: [
+      () => trySelectors([
+        '.pdp-price', 'ul.ProductDetailsMainCard__PriceList li span',
+        'span[class*="Price"]', 'div[class*="price"] span', '.product-price',
+      ]),
+    ],
+  };
+
+  const fns = map[platform] || [];
+  for (const fn of fns) {
+    const price = fn();
+    if (price) return price;
+  }
+  return null;
+}
+
+function extractPriceJsonLD() {
+  const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+  for (const script of scripts) {
+    try {
+      const data = JSON.parse(script.textContent);
+      const items = Array.isArray(data) ? data : [data];
+      for (const item of items) {
+        const p = item?.offers?.price ?? item?.offers?.[0]?.price ?? item?.price;
+        if (p) {
+          const price = parseFloat(String(p).replace(/,/g, ''));
+          if (!isNaN(price) && price > 0) return price;
+        }
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
+function extractPriceMeta() {
+  const metas = [
+    'meta[property="product:price:amount"]',
+    'meta[itemprop="price"]',
+    'meta[name="price"]',
+    'meta[property="og:price:amount"]',
   ];
-  const bodyText = document.body.innerText.toLowerCase();
-  const found = keywords.filter((k) => bodyText.includes(k));
-  return found.length ? Array.from(new Set(found)) : [];
+  for (const sel of metas) {
+    const el = document.querySelector(sel);
+    if (el) {
+      const price = parseFloat(el.getAttribute('content')?.replace(/,/g, ''));
+      if (!isNaN(price) && price > 0) return price;
+    }
+  }
+  return null;
+}
+
+function extractPriceGeneric() {
+  const candidates = document.querySelectorAll(
+    '[class*="price"],[id*="price"],[class*="Price"],[id*="Price"],' +
+    '[itemprop="price"],[data-price],[data-product-price]'
+  );
+  for (const el of candidates) {
+    if (el.offsetParent === null) continue;
+    const text = el.innerText || el.textContent || '';
+    if (!text.includes('₹') && !text.toLowerCase().includes('rs')) continue;
+    const price = parsePrice(text);
+    if (price) return price;
+  }
+  return null;
+}
+
+function extractPrice(platform) {
+  return (
+    extractPricePlatform(platform) ||
+    extractPriceJsonLD()           ||
+    extractPriceMeta()             ||
+    extractPriceGeneric()          ||
+    null
+  );
+}
+
+function extractTitle(platform) {
+  const map = {
+    amazon:   ['#productTitle', 'h1.a-size-large'],
+    flipkart: ['span.B_NuCI', 'h1._9E25nV', 'h1.yhB1nd', 'h1'],
+    myntra:   ['h1.pdp-title', 'h1.pdp-name', 'h1'],
+    ajio:     ['h1.prod-name', 'h1'],
+    meesho:   ['p.sc-eDvSVe', 'h1.sc-eDvSVe', 'h1'],
+    snapdeal: ['h1.pdp-e-i-head', 'h1'],
+    nykaa:    ['h1.css-1gc4x7i', 'h1[class*="product"]', 'h1'],
+    tatacliq: ['h1.ProductDetailsMainCard__ProductName', 'h1[class*="Product"]', 'h1'],
+  };
+  const selectors = [...(map[platform] || []), '#productTitle', 'h1[itemprop="name"]', '[itemprop="name"]', 'h1'];
+  for (const sel of selectors) {
+    try {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+      const text = (el.innerText || el.textContent || '').trim();
+      if (text.length > 5) return text;
+    } catch (e) {}
+  }
+  const og = document.querySelector('meta[property="og:title"]');
+  if (og?.getAttribute('content')) return og.getAttribute('content').trim();
+  return document.title || 'Unknown Product';
 }
 
 function detectDarkPatterns() {
+  const text = (document.body.innerText || '').toLowerCase();
   const patterns = [];
-
-  // Forced urgency
-  const urgencyPhrases = ['only', 'left', 'limited', 'hurry', 'ends', 'today only', 'last chance'];
-  const body = document.body.innerText.toLowerCase();
-  if (urgencyPhrases.some((p) => body.includes(p))) {
-    patterns.push('Urgency messaging ("only X left", "limited time")');
-  }
-
-  // Pre-checked options
-  const prechecked = Array.from(document.querySelectorAll('input[type=checkbox]:checked'));
-  if (prechecked.length) {
-    patterns.push('Pre-checked add-ons / opt-outs');
-  }
-
-  // Misleading discounts
-  const discountRe = /(\d{1,2}%\s*off|save\s*\$\d+)/i;
-  if (discountRe.test(body)) {
-    patterns.push('Discount messaging ("% off", "Save $X")');
-  }
-
+  if (['only left','hurry','limited time','ends soon','selling fast','almost gone'].some(w => text.includes(w)))
+    patterns.push('urgency_messaging');
+  if (['auto-renew','subscribe & save','recurring charge','monthly plan','cancel anytime'].some(w => text.includes(w)))
+    patterns.push('subscription_trap');
+  if (['only 1 left','only 2 left','only 3 left','in high demand','few left'].some(w => text.includes(w)))
+    patterns.push('artificial_scarcity');
+  if (document.querySelectorAll('input[type="checkbox"]:checked').length > 0)
+    patterns.push('pre_checked_options');
   return patterns;
 }
 
-function extractAmazonASIN(url) {
-  // Amazon URLs often contain /dp/ASIN or /gp/product/ASIN
-  const match = url.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/);
-  return match ? match[1] : null;
+// ─── THE FIX: Wait for price to appear in DOM ─────────────────────────────────
+function waitForPrice(platform, maxWait = 8000) {
+  return new Promise((resolve) => {
+    // Try immediately first
+    const immediate = extractPrice(platform);
+    if (immediate) { resolve(immediate); return; }
+
+    const start = Date.now();
+    const observer = new MutationObserver(() => {
+      const price = extractPrice(platform);
+      if (price) {
+        observer.disconnect();
+        resolve(price);
+        return;
+      }
+      if (Date.now() - start > maxWait) {
+        observer.disconnect();
+        resolve(null);
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    // Hard timeout fallback
+    setTimeout(() => {
+      observer.disconnect();
+      resolve(extractPrice(platform));
+    }, maxWait);
+  });
 }
 
-function extractEbayId(url) {
-  // eBay item URLs often end with /itm/<id>
-  const match = url.match(/\/itm\/(\d+)/);
-  return match ? match[1] : null;
-}
+// ─── Cached result so we don't re-scrape on every message ────────────────────
+let cachedContext = null;
 
-function getProductKey() {
-  const url = window.location.href;
-  const asin = extractAmazonASIN(url);
-  if (asin) return `amazon:${asin}`;
+async function buildPageContext() {
+  const platform    = getPlatform();
+  const productPage = isProductPage(platform);
 
-  const ebay = extractEbayId(url);
-  if (ebay) return `ebay:${ebay}`;
+  console.log('🔍 Platform:', platform, '| Product page:', productPage);
 
-  return `url:${url}`;
-}
+  if (!productPage) {
+    return {
+      url: window.location.href, platform,
+      title: document.title, price: null,
+      priceRaw: null, isProductPage: false,
+      darkPatterns: [], timestamp: Date.now(),
+    };
+  }
 
-function getPageContext() {
-  const price = findPrice();
-  const title = findTitle();
-  const subscriptionKeywords = detectSubscriptionText();
+  // Wait for price to be rendered
+  const price        = await waitForPrice(platform);
+  const title        = extractTitle(platform);
   const darkPatterns = detectDarkPatterns();
 
-  console.log('DecisionRisk: Scraped data:', {
-    url: window.location.href,
-    title,
-    price: price?.value,
-    priceRaw: price?.raw,
-    priceSelector: price?.selector,
-    subscriptionKeywords,
-    darkPatterns,
-  });
+  console.log('📦 Title:', title);
+  console.log('📦 Price:', price);
 
-  return {
+  cachedContext = {
     url: window.location.href,
-    productKey: getProductKey(),
-    title,
-    price: price?.value ?? null,
-    priceRaw: price?.raw ?? null,
-    priceSelector: price?.selector ?? null,
-    subscriptionKeywords,
+    platform,
+    title: title || 'Unknown Product',
+    price: price || null,
+    priceRaw: price ? '₹' + price.toLocaleString('en-IN') : null,
+    isProductPage: true,
     darkPatterns,
     timestamp: Date.now(),
   };
+
+  return cachedContext;
 }
 
+// Pre-build context as soon as script loads
+buildPageContext().then(ctx => {
+  console.log('✅ Pre-built context:', ctx?.price ? `₹${ctx.price}` : 'no price');
+});
+
+// ─── Message Listener ─────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === 'SCRAPE_PAGE') {
-    sendResponse({ success: true, data: getPageContext() });
+    // If we already have cached result, return it immediately
+    if (cachedContext) {
+      sendResponse({ success: true, data: cachedContext });
+      return true;
+    }
+    // Otherwise wait for it
+    buildPageContext().then(ctx => {
+      sendResponse({ success: true, data: ctx });
+    }).catch(err => {
+      sendResponse({ success: false, error: err.message });
+    });
   }
-  // Indicate we will respond asynchronously when needed (no return).
+  return true;
 });
+
