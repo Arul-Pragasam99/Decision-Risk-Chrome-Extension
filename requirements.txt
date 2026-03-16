@@ -1,10 +1,10 @@
 flask
 flask-cors
-numpy
+numpy==1.26.4
 pandas
 scikit-learn
-tensorflow-cpu
-spacy
+tensorflow-cpu==2.15.0
+spacy==3.7.4
 nltk
 gunicorn
 https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
