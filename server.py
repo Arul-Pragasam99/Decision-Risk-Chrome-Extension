@@ -24,10 +24,15 @@ def warm_models():
         from ai_models.resale_value_model    import _build_rf_model
 
         _load_spacy()
+        print('spaCy loaded')
         _build_classifier()
+        print('Dark pattern classifier loaded')
         _init_nltk()
+        print('NLTK loaded')
         _build_subscription_classifier()
+        print('Subscription classifier loaded')
         _build_rf_model()
+        print('Resale RF model loaded')
 
         _models_loaded = True
         print('All AI models loaded and ready')
@@ -37,8 +42,14 @@ def warm_models():
         start_keep_alive()
 
     except Exception as e:
-        print(f'Some models failed to load: {e}')
+        print(f'Model loading error: {e}')
+        import traceback
+        traceback.print_exc()
         _models_loaded = True
+
+
+# ── Load models when gunicorn imports this module ─────────────────────────────
+warm_models()
 
 
 @app.route('/health', methods=['GET'])
@@ -179,7 +190,6 @@ def analyze():
 
 
 if __name__ == '__main__':
-    threading.Thread(target=warm_models, daemon=True).start()
     port = int(os.environ.get('PORT', 5000))
     print(f'DecisionRisk AI Server running on port {port}')
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
