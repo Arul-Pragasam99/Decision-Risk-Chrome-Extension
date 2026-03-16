@@ -10,14 +10,12 @@
 <body>
   <div class="container">
 
-    <!-- Animated Gradient Background -->
     <div class="gradient-bg">
       <div class="gradient-orb orb1"></div>
       <div class="gradient-orb orb2"></div>
       <div class="gradient-orb orb3"></div>
     </div>
 
-    <!-- Main Content -->
     <div class="content">
 
       <!-- Header -->
@@ -26,17 +24,16 @@
           <div class="logo-icon"></div>
           <div class="logo-text">
             <h1>DecisionRisk</h1>
+            <p class="tagline">Smart Shopping Assistant</p>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-          <p class="tagline">Smart Shopping Assistant</p>
-          <span id="serverBadge" class="server-badge offline">⚪ Basic Mode</span>
+          <span id="serverBadge" class="server-badge offline">Basic Mode</span>
         </div>
       </header>
 
       <!-- Product Info Card -->
       <div class="product-card glass-card" id="productInfo">
-        <div class="product-icon">📦</div>
         <div class="product-details">
           <h2 id="productName" class="product-name">Loading...</h2>
           <div class="price-container">
@@ -45,7 +42,6 @@
           </div>
         </div>
         <div class="retailer-badge" id="retailerBadge">
-          <span class="retailer-icon">🛒</span>
           <span id="retailerName">Detecting...</span>
         </div>
       </div>
@@ -54,9 +50,8 @@
       <div class="metrics-grid" id="metricsGrid">
 
         <!-- Price Risk -->
-        <div class="metric-card glass-card" data-metric="price">
+        <div class="metric-card" data-metric="price">
           <div class="metric-header">
-            <span class="metric-icon">💰</span>
             <span class="metric-title">Price Risk</span>
           </div>
           <div class="meter-container">
@@ -71,13 +66,12 @@
           </div>
           <div class="metric-detail" id="priceDetail"></div>
           <div id="priceTrendBadge" class="trend-badge" style="display:none;margin-top:5px"></div>
-          <div id="predictedPrice" style="display:none;margin-top:6px;padding:6px 8px;background:rgba(99,102,241,0.08);border-radius:6px;border:1px solid rgba(99,102,241,0.15)"></div>
+          <div id="predictedPrice" style="display:none;margin-top:6px;padding:6px 8px;background:rgba(255,255,255,0.04);border-radius:6px;border:1px solid rgba(255,255,255,0.10)"></div>
         </div>
 
         <!-- Resale Value -->
-        <div class="metric-card glass-card" data-metric="resale">
+        <div class="metric-card" data-metric="resale">
           <div class="metric-header">
-            <span class="metric-icon">📈</span>
             <span class="metric-title">Resale Value</span>
           </div>
           <div class="meter-container">
@@ -91,13 +85,12 @@
             </div>
           </div>
           <div class="metric-detail" id="resaleDetail"></div>
-          <div id="resaleTips" style="display:none;font-size:10px;color:#6ee7b7;margin-top:5px;line-height:1.4"></div>
+          <div id="resaleTips" style="display:none;font-size:10px;color:rgba(255,255,255,0.6);margin-top:5px;line-height:1.4"></div>
         </div>
 
         <!-- Subscription Trap -->
-        <div class="metric-card glass-card" data-metric="subscription">
+        <div class="metric-card" data-metric="subscription">
           <div class="metric-header">
-            <span class="metric-icon">🔄</span>
             <span class="metric-title">Subscription Trap</span>
           </div>
           <div class="status-indicator" id="subscriptionStatus">
@@ -108,13 +101,12 @@
         </div>
 
         <!-- Dark Patterns -->
-        <div class="metric-card glass-card" data-metric="darkpattern">
+        <div class="metric-card" data-metric="darkpattern">
           <div class="metric-header">
-            <span class="metric-icon">🎭</span>
             <span class="metric-title">Dark Patterns</span>
           </div>
           <div class="pattern-tags" id="darkPatternTags">
-            <span class="no-patterns">No patterns detected</span>
+            <span class="no-patterns">None detected</span>
           </div>
           <div class="metric-detail" id="darkPatternDetail"></div>
         </div>
@@ -124,7 +116,7 @@
       <!-- Alternatives Section -->
       <div class="alternatives-section glass-card" id="alternativesSection">
         <div class="section-header">
-          <h3>✨ Better Alternatives</h3>
+          <h3>Better Alternatives</h3>
           <span class="count-badge" id="alternativeCount">0</span>
         </div>
         <div class="alternatives-grid" id="alternativesGrid"></div>
@@ -132,12 +124,10 @@
 
       <!-- Action Buttons -->
       <div class="action-bar">
-        <button id="refreshBtn" class="btn btn-primary glass-button">
-          <span class="btn-icon">🔄</span>
+        <button id="refreshBtn" class="btn btn-primary">
           <span>Analyze Again</span>
         </button>
-        <button id="viewAlternativesBtn" class="btn btn-secondary glass-button">
-          <span class="btn-icon">🔍</span>
+        <button id="viewAlternativesBtn" class="btn btn-secondary">
           <span>Compare Prices</span>
         </button>
       </div>
@@ -145,12 +135,12 @@
       <!-- Footer -->
       <footer class="glass-footer">
         <div class="stats-row">
-          <span>📊 <span id="historyCount">0</span> price points</span>
-          <span id="processingTime" style="display:none;font-size:10px;color:#475569"></span>
-          <span>⚡ <span id="lastUpdated">just now</span></span>
+          <span><span id="historyCount">0</span> price points</span>
+          <span id="processingTime" style="display:none"></span>
+          <span id="lastUpdated">just now</span>
         </div>
         <div class="tip">
-          💡 Tip: Compare across different retailers for best deals!
+          Tip: Compare across different retailers for best deals!
         </div>
       </footer>
 

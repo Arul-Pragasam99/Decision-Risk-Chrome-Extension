@@ -1,4 +1,4 @@
-// popup.js — DecisionRisk™ full UI
+// popup.js — DecisionRisk™ (no icons)
 
 function getEl(id) { return document.getElementById(id); }
 
@@ -7,11 +7,11 @@ function riskToPercent(level) {
 }
 
 function riskToColor(level) {
-  return { 'Low': '#22c55e', 'Medium': '#f59e0b', 'High': '#ef4444', 'Unknown': '#94a3b8' }[level] ?? '#94a3b8';
+  return { 'Low': '#22c55e', 'Medium': '#f59e0b', 'High': '#ef4444', 'Unknown': '#475569' }[level] ?? '#475569';
 }
 
-function trendIcon(trend) {
-  return { 'rising': '📈', 'falling': '📉', 'stable': '➡️' }[trend] ?? '❓';
+function trendLabel(trend) {
+  return { 'rising': 'Rising', 'falling': 'Falling', 'stable': 'Stable' }[trend] ?? '';
 }
 
 function confidenceBar(score) {
@@ -22,7 +22,7 @@ function confidenceBar(score) {
       <div style="flex:1;height:3px;background:rgba(255,255,255,0.08);border-radius:2px">
         <div style="width:${pct}%;height:100%;background:${color};border-radius:2px"></div>
       </div>
-      <span style="font-size:9px;color:#64748b">${pct}% confidence</span>
+      <span style="font-size:9px;color:#475569">${pct}% confidence</span>
     </div>`;
 }
 
@@ -36,24 +36,21 @@ function buildAlternatives(productName, currentUrl) {
   const q = encodeURIComponent(productName);
 
   const platforms = [
-    { name: 'Amazon',    icon: '🛒', url: `https://www.amazon.in/s?k=${q}`,                                domain: 'amazon.in'    },
-    { name: 'Flipkart',  icon: '🛍️', url: `https://www.flipkart.com/search?q=${q}`,                        domain: 'flipkart.com' },
-    { name: 'Myntra',    icon: '👗', url: `https://www.myntra.com/${q}`,                                    domain: 'myntra.com'   },
-    { name: 'Ajio',      icon: '✨', url: `https://www.ajio.com/search/?text=${q}`,                         domain: 'ajio.com'     },
-    { name: 'Meesho',    icon: '🏷️', url: `https://www.meesho.com/search?q=${q}`,                          domain: 'meesho.com'   },
-    { name: 'Snapdeal',  icon: '💥', url: `https://www.snapdeal.com/search?keyword=${q}`,                   domain: 'snapdeal.com' },
-    { name: 'Nykaa',     icon: '💄', url: `https://www.nykaa.com/search/result/?q=${q}`,                    domain: 'nykaa.com'    },
-    { name: 'Tata CLiQ', icon: '🏪', url: `https://www.tatacliq.com/search/?searchCategory=all&text=${q}`, domain: 'tatacliq.com' },
+    { name: 'Amazon',    url: `https://www.amazon.in/s?k=${q}`,                                domain: 'amazon.in'    },
+    { name: 'Flipkart',  url: `https://www.flipkart.com/search?q=${q}`,                        domain: 'flipkart.com' },
+    { name: 'Myntra',    url: `https://www.myntra.com/${q}`,                                    domain: 'myntra.com'   },
+    { name: 'Ajio',      url: `https://www.ajio.com/search/?text=${q}`,                         domain: 'ajio.com'     },
+    { name: 'Meesho',    url: `https://www.meesho.com/search?q=${q}`,                           domain: 'meesho.com'   },
+    { name: 'Snapdeal',  url: `https://www.snapdeal.com/search?keyword=${q}`,                   domain: 'snapdeal.com' },
+    { name: 'Nykaa',     url: `https://www.nykaa.com/search/result/?q=${q}`,                    domain: 'nykaa.com'    },
+    { name: 'Tata CLiQ', url: `https://www.tatacliq.com/search/?searchCategory=all&text=${q}`, domain: 'tatacliq.com' },
   ];
 
-  // Filter out current platform
   const filtered = platforms.filter(p => !currentUrl.includes(p.domain));
 
-  // Update count badge
   const countEl = getEl('alternativeCount');
   if (countEl) countEl.textContent = filtered.length;
 
-  // Build grid using DOM — onclick in innerHTML is blocked by CSP
   const grid = getEl('alternativesGrid');
   if (!grid) return;
 
@@ -63,7 +60,6 @@ function buildAlternatives(productName, currentUrl) {
     const card = document.createElement('div');
     card.className = 'alt-card';
     card.innerHTML = `
-      <span class="alt-icon">${p.icon}</span>
       <span class="alt-name">${p.name}</span>
       <span class="alt-arrow">→</span>
     `;
@@ -77,19 +73,18 @@ function buildAlternatives(productName, currentUrl) {
 // ─── Main UI update ───────────────────────────────────────────────────────────
 function updateUI(analysis) {
   if (!analysis) return;
-  console.log('📊 Updating UI:', analysis);
 
-  // ── Product name ──────────────────────────────────────────────────────────
+  // Product name
   const nameEl = getEl('productName');
   if (analysis.productTitle && analysis.productTitle !== 'Loading...') {
     nameEl.textContent   = analysis.productTitle;
     nameEl.style.opacity = '1';
   } else {
     nameEl.textContent   = 'No product detected';
-    nameEl.style.opacity = '0.6';
+    nameEl.style.opacity = '0.5';
   }
 
-  // ── Price ─────────────────────────────────────────────────────────────────
+  // Price
   const priceEl = getEl('productPrice');
   if (analysis.productPrice) {
     priceEl.textContent   = new Intl.NumberFormat('en-IN', {
@@ -98,10 +93,10 @@ function updateUI(analysis) {
     priceEl.style.opacity = '1';
   } else {
     priceEl.textContent   = 'Price not found';
-    priceEl.style.opacity = '0.6';
+    priceEl.style.opacity = '0.4';
   }
 
-  // ── Retailer ──────────────────────────────────────────────────────────────
+  // Retailer
   const url = analysis.url || '';
   const retailerMap = {
     'amazon.in':    'Amazon India',
@@ -120,14 +115,14 @@ function updateUI(analysis) {
   }
   getEl('retailerName').textContent = retailer;
 
-  // ── Server status badge ───────────────────────────────────────────────────
+  // Server badge
   const badge = getEl('serverBadge');
   if (badge) {
-    badge.textContent = analysis.serverOnline ? '🟢 AI Active' : '⚪ Basic Mode';
+    badge.textContent = analysis.serverOnline ? 'AI Active' : 'Basic Mode';
     badge.className   = `server-badge ${analysis.serverOnline ? 'online' : 'offline'}`;
   }
 
-  // ── Price risk meter ──────────────────────────────────────────────────────
+  // Price risk
   const priceRisk = analysis.priceRisk || 'Unknown';
   getEl('priceRiskValue').textContent = priceRisk;
 
@@ -144,7 +139,7 @@ function updateUI(analysis) {
   const trendEl = getEl('priceTrendBadge');
   if (trendEl && analysis.priceTrend) {
     const trend           = analysis.priceTrend;
-    trendEl.textContent   = `${trendIcon(trend)} ${trend.charAt(0).toUpperCase() + trend.slice(1)}`;
+    trendEl.textContent   = trendLabel(trend);
     trendEl.className     = `trend-badge trend-${trend}`;
     trendEl.style.display = 'inline-flex';
   }
@@ -154,9 +149,9 @@ function updateUI(analysis) {
   if (predEl) {
     if (analysis.predictedNextPrice && analysis.predictionConfidence > 0.4) {
       predEl.innerHTML = `
-        <span style="font-size:10px;color:#64748b">AI predicts next: </span>
-        <span style="font-size:11px;font-weight:600;color:#a5b4fc">
-          ₹${Number(analysis.predictedNextPrice).toLocaleString('en-IN')}
+        <span style="font-size:10px;color:#475569">Predicted next: </span>
+        <span style="font-size:11px;font-weight:600;color:#ffffff">
+          Rs.${Number(analysis.predictedNextPrice).toLocaleString('en-IN')}
         </span>
         ${confidenceBar(analysis.predictionConfidence)}
       `;
@@ -166,7 +161,7 @@ function updateUI(analysis) {
     }
   }
 
-  // ── Resale value meter ────────────────────────────────────────────────────
+  // Resale value
   const resaleRisk = analysis.resaleRisk || 'Medium';
   getEl('resaleRiskValue').textContent = resaleRisk;
 
@@ -187,18 +182,17 @@ function updateUI(analysis) {
     resaleDetailEl.textContent = resaleText;
   }
 
-  // Resale tips
   const tipsEl = getEl('resaleTips');
   if (tipsEl) {
     if (analysis.resaleTips) {
-      tipsEl.textContent   = `💡 ${analysis.resaleTips}`;
+      tipsEl.textContent   = analysis.resaleTips;
       tipsEl.style.display = 'block';
     } else {
       tipsEl.style.display = 'none';
     }
   }
 
-  // ── Subscription risk ─────────────────────────────────────────────────────
+  // Subscription
   getEl('subscriptionRiskValue').textContent = analysis.subscriptionRisk || 'Low';
 
   const subDetailEl = getEl('subscriptionDetail');
@@ -210,40 +204,40 @@ function updateUI(analysis) {
     subDetailEl.textContent = subText;
   }
 
-  // ── Dark patterns ─────────────────────────────────────────────────────────
+  // Dark patterns
   const patternsContainer = getEl('darkPatternTags');
   if (analysis.darkPatterns && analysis.darkPatterns.length > 0) {
     patternsContainer.innerHTML = analysis.darkPatterns
       .map(p => `<span class="pattern-tag">${p.replace(/_/g, ' ')}</span>`)
       .join('');
   } else {
-    patternsContainer.innerHTML = '<span class="no-patterns">✨ No dark patterns detected</span>';
+    patternsContainer.innerHTML = '<span class="no-patterns">None detected</span>';
   }
 
   const dpDetailEl = getEl('darkPatternDetail');
   if (dpDetailEl) dpDetailEl.textContent = analysis.darkPatternDetail || '';
 
-  // ── Footer stats ──────────────────────────────────────────────────────────
+  // Footer
   getEl('historyCount').textContent = analysis.priceHistoryCount || 0;
   getEl('lastUpdated').textContent  = new Date().toLocaleTimeString('en-IN');
 
   const procEl = getEl('processingTime');
   if (procEl) {
     if (analysis.processingTimeMs > 0) {
-      procEl.textContent   = `⚡ ${analysis.processingTimeMs}ms`;
+      procEl.textContent   = `${analysis.processingTimeMs}ms`;
       procEl.style.display = 'inline';
     } else {
       procEl.style.display = 'none';
     }
   }
 
-  // ── Alternatives ──────────────────────────────────────────────────────────
+  // Alternatives
   buildAlternatives(analysis.productTitle, analysis.url || '');
 }
 
 // ─── Loading state ────────────────────────────────────────────────────────────
 function showLoading() {
-  getEl('productName').textContent           = 'Analyzing page...';
+  getEl('productName').textContent           = 'Analyzing...';
   getEl('productPrice').textContent          = '---';
   getEl('retailerName').textContent          = 'Detecting...';
   getEl('priceRiskValue').textContent        = '--';
@@ -254,7 +248,7 @@ function showLoading() {
   getEl('alternativeCount').textContent      = '0';
 
   const badge = getEl('serverBadge');
-  if (badge) { badge.textContent = '🔄 Analyzing...'; badge.className = 'server-badge offline'; }
+  if (badge) { badge.textContent = 'Analyzing...'; badge.className = 'server-badge offline'; }
 
   const pred = getEl('predictedPrice');
   if (pred) pred.style.display = 'none';
@@ -269,7 +263,7 @@ function showLoading() {
 // ─── Error state ──────────────────────────────────────────────────────────────
 function showError(message) {
   getEl('productName').textContent   = message || 'Could not analyze page';
-  getEl('productName').style.opacity = '0.6';
+  getEl('productName').style.opacity = '0.5';
   getEl('productPrice').textContent  = '---';
   const pd = getEl('priceDetail');
   if (pd) pd.textContent = 'Make sure you are on a product page and try again.';
@@ -280,7 +274,7 @@ function openCompare() {
   const name = getEl('productName').textContent;
   if (!name ||
       name === 'No product detected' ||
-      name === 'Analyzing page...' ||
+      name === 'Analyzing...' ||
       name === 'Loading...') return;
 
   const q = encodeURIComponent(name);
@@ -297,7 +291,7 @@ function runAnalysis() {
   showLoading();
   chrome.runtime.sendMessage({ type: 'ANALYZE_PAGE' }, (response) => {
     if (chrome.runtime.lastError) {
-      showError('Extension error — try reloading the page.');
+      showError('Extension error. Try reloading the page.');
       return;
     }
     if (response?.analysis) updateUI(response.analysis);
