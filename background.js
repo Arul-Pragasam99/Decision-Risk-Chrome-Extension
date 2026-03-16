@@ -1,7 +1,6 @@
 // background.js — DecisionRisk™ with Render cloud server
 
 const LOCAL_SERVER = 'https://decisionrisk-server.onrender.com';
-
 const DEFAULT_ANALYSIS = {
   priceRisk: 'Unknown',
   resaleRisk: 'Medium',

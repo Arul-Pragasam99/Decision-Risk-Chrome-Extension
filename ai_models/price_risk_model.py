@@ -1,11 +1,16 @@
-"""price_risk_model.py — Fixed Pylance errors."""
+"""price_risk_model.py — LSTM disabled on server to save RAM."""
 
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass
 from typing import Optional, List, Tuple
+import os
 import warnings
 warnings.filterwarnings('ignore')
+
+# ── Detect if running on server (Render) or locally ──────────────────────────
+# Set ENABLE_LSTM=true in environment to enable LSTM locally
+ENABLE_LSTM = os.environ.get('ENABLE_LSTM', 'false').lower() == 'true'
 
 _tf             = None
 _sklearn_scaler = None
@@ -16,6 +21,10 @@ def _get_tf():
     if _tf is None:
         import tensorflow as tf
         tf.get_logger().setLevel('ERROR')
+        # Limit memory usage
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
         _tf = tf
     return _tf
 
@@ -76,9 +85,18 @@ def build_lstm_model(seq_len: int = 10):
     return model
 
 
-def predict_next_price(prices: List[float], seq_len: int = 10) -> Tuple[Optional[float], float]:
+def predict_next_price_lstm(
+    prices: List[float],
+    seq_len: int = 10
+) -> Tuple[Optional[float], float]:
+    """LSTM prediction — only runs if ENABLE_LSTM=true."""
+    if not ENABLE_LSTM:
+        print('ℹ️ LSTM disabled on server — using rule-based prediction')
+        return _rule_based_prediction(prices), 0.6
+
     if len(prices) < seq_len + 2:
         return None, 0.0
+
     try:
         Scaler = _get_scaler()
         scaler = Scaler()
@@ -97,18 +115,33 @@ def predict_next_price(prices: List[float], seq_len: int = 10) -> Tuple[Optional
 
         last_seq    = scaled[-seq_len:].reshape(1, seq_len, 1)
         pred_scaled = float(model.predict(last_seq, verbose=0)[0][0])
-        # Fix: use np.array instead of nested list for inverse_transform
-        predicted   = float(scaler.inverse_transform(np.array([[pred_scaled]]))[0][0])
+        predicted   = float(
+            scaler.inverse_transform(np.array([[pred_scaled]]))[0][0]
+        )
 
         val_pred   = model.predict(X_arr[-3:], verbose=0).flatten()
         val_true   = y_arr[-3:].flatten()
-        mape       = float(np.mean(np.abs(val_pred - val_true) / (np.abs(val_true) + 1e-8)))
+        mape       = float(
+            np.mean(np.abs(val_pred - val_true) / (np.abs(val_true) + 1e-8))
+        )
         confidence = max(0.0, min(1.0, 1.0 - mape))
 
         return predicted, confidence
+
     except Exception as e:
-        print(f'LSTM prediction failed: {e}')
-        return None, 0.0
+        print(f'LSTM failed: {e} — falling back to rule-based')
+        return _rule_based_prediction(prices), 0.5
+
+
+def _rule_based_prediction(prices: List[float]) -> Optional[float]:
+    """Simple rule-based next price prediction using moving average."""
+    if len(prices) < 3:
+        return None
+    arr = np.array(prices[-7:], dtype=np.float64)
+    # Weighted average — recent prices weighted more
+    weights = np.arange(1, len(arr) + 1, dtype=np.float64)
+    predicted = float(np.average(arr, weights=weights))
+    return round(predicted, 2)
 
 
 def calculate_trend(prices: List[float]) -> str:
@@ -138,7 +171,7 @@ def estimate_price_history(
         high       = float(np.max(arr))
         trend      = calculate_trend(historical_prices)
         volatility = float(np.std(arr) / (avg + 1e-8))
-        predicted, confidence = predict_next_price(historical_prices)
+        predicted, confidence = predict_next_price_lstm(historical_prices)
         count = len(historical_prices)
     else:
         avg        = current_price
@@ -177,15 +210,26 @@ def price_risk_score(history: PriceHistory) -> PriceRiskScore:
 
     trend_prediction: Optional[str] = None
     if history.predicted_next is not None and history.confidence > 0.4:
-        pred_change = (history.predicted_next - history.current) / (history.current + 1e-8)
+        pred_change = (
+            history.predicted_next - history.current
+        ) / (history.current + 1e-8)
         if pred_change > 0.03:
             score += 0.1
-            trend_prediction = f'Price likely to rise to Rs.{history.predicted_next:,.0f}'
+            trend_prediction = (
+                f'Price likely to rise to '
+                f'Rs.{history.predicted_next:,.0f}'
+            )
         elif pred_change < -0.03:
             score -= 0.1
-            trend_prediction = f'Price likely to drop to Rs.{history.predicted_next:,.0f}'
+            trend_prediction = (
+                f'Price likely to drop to '
+                f'Rs.{history.predicted_next:,.0f}'
+            )
         else:
-            trend_prediction = f'Price likely stable around Rs.{history.predicted_next:,.0f}'
+            trend_prediction = (
+                f'Price likely stable around '
+                f'Rs.{history.predicted_next:,.0f}'
+            )
 
     score = max(0.0, min(1.0, score))
 
@@ -194,10 +238,10 @@ def price_risk_score(history: PriceHistory) -> PriceRiskScore:
         recommendation = 'Good time to buy — price is favourable'
     elif score < 0.65:
         risk_level     = 'Medium'
-        recommendation = 'Price is around average — consider waiting for a better deal'
+        recommendation = 'Price is around average — consider waiting'
     else:
         risk_level     = 'High'
-        recommendation = 'Price is high — consider waiting for a price drop'
+        recommendation = 'Price is high — consider waiting for a drop'
 
     details = (
         f"Current: Rs.{history.current:,.0f} | "
